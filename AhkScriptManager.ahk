@@ -6,11 +6,6 @@
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-; Ctrl + Alt + 左键    唤出"启动脚本"菜单
-; Ctrl + Alt + 中键    唤出"重载脚本"菜单
-; Ctrl + Alt + 右键    唤出"关闭脚本"菜单
-; Ctrl + Alt + A       关闭所有脚本
-;
 ; 注意: 当更新系统环境变量时，需要退出本程序后再重启，才能使得环境变量的更改有效
 ;
 ; 删除一些不必要的功能，增加非驻守脚本(文件名以"+"开头)的处理
@@ -31,23 +26,33 @@
 #Persistent
 #SingleInstance force
 
-SetWorkingDir %A_ScriptDir%\scripts\
+SetWorkingDir(A_ScriptDir "\scripts\")
 
-DetectHiddenWindows On  ; 允许探测脚本中隐藏的主窗口. 很多子程序均是以隐藏方式运行的
-SetTitleMatchMode 2     ; 避免需要指定如下所示的文件的完整路径
+DetectHiddenWindows True ; 允许探测脚本中隐藏的主窗口. 很多子程序均是以隐藏方式运行的
+SetTitleMatchMode 2 ; 避免需要指定如下所示的文件的完整路径
 
-EnvGet, Paths, PATH
-EnvSet, PATH, %A_ScriptDir%\3rd`;%Paths%	; 设置环境变量. 通过AhkScriptManager启动的程序均持有该环境变量
+Paths:=EnvGet("PATH")
+EnvSet("PATH", A_ScriptDir "\3rd") ;%Paths%	; 设置环境变量. 通过AhkScriptManager启动的程序均持有该环境变量
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                     初始化                            ;
+; 初始化 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-scriptCount = 0
+global scriptCount := "0"
 
-OnExit ExitSub
+OnExit("ExitSub")
 
-GoSub CreateMenus
+;  declare tray item
+global scripts_restart:=Menu.New() ; "重载脚本"子菜单
+global scripts_unclose:=Menu.New() ; "关闭脚本"子菜单
+global scripts_unopen:=Menu.New() ; "启动脚本"子菜单
+
+CreateMenus(scripts_restart)
+CreateMenus(scripts_unclose)
+CreateMenus(scripts_unopen)
+
+global ScriptList := Array() ;读取到的脚本
+global ScriptStatus := Array() ;脚本运行的状态 0-未运行 1-运行
 
 OpenListTemp := Array()		; 已运行程序列表中的临时驻守脚本
 OpenListDeamon := Array()	; 已运行程序列表中的驻守脚本
@@ -57,410 +62,328 @@ UnOpenListOnce := Array()	; 未运行程序列表中的非驻守脚本
 UnOpenListDeamon := Array()	; 未运行程序列表中的驻守脚本
 
 ; 遍历scripts目录下的ahk文件
-Loop, %A_ScriptDir%\scripts\*.ahk
+Loop Files (A_ScriptDir "\scripts\*.ahk")
 {
-	StringTrimRight, menuName, A_LoopFileName, StrLen(".ahk")
+    menuName := SubStr(A_LoopFileName, 1, -1*(StrLen(".ahk")))
     scriptCount += 1
-
+    
     ; 已经打开则关闭，否则无法被AHK Manager接管
-    IfWinExist, %A_LoopFileName% - AutoHotkey
+    if WinExist(A_LoopFileName . " - AutoHotkey")
     {
-        scriptsExisted%scriptCount% = 1
+        ; scriptsExisted%scriptCount% = 1
         WinKill
     }
-
-    scriptsName%scriptCount% := A_LoopFileName
-    scriptsOpened%scriptCount% = 0
-
-	IfInString, menuName, ! ; 文件名中含"!"表示临时驻守脚本
-	{
-		UnOpenListTemp.Insert(menuName)
-		Continue
-	}
-
-    IfInString, menuName, + ; 文件名中含"+"表示非驻守脚本
-	{
-		UnOpenListOnce.Insert(menuName)
-		Continue
-	}
-
-    UnOpenListDeamon.Insert(menuName)
+    
+    ; global scriptsName%scriptCount% := A_LoopFileName
+    ScriptList.InsertAt(scriptCount,A_LoopFileName)
+    ; global scriptsOpened%scriptCount% := 0
+    ScriptStatus.InsertAt(scriptCount,0)
+    
+    if InStr(menuName, "!", (A_StringCaseSense="On") ? true : false) ; 文件名中含"!"表示临时驻守脚本
+    {
+        UnOpenListTemp.Push(menuName)
+        Continue
+    }
+    
+    if InStr(menuName, "+", (A_StringCaseSense="On") ? true : false) ; 文件名中含"+"表示非驻守脚本
+    {
+        UnOpenListOnce.Push(menuName)
+        Continue
+    }
+    
+    UnOpenListDeamon.Push(menuName)
 }
-
 ; 依次添加脚本到启动脚本菜单，类型间加入分隔线
 AddToUnOpenMenu(UnOpenListTemp)
 AddToUnOpenMenu(UnOpenListOnce)
 AddToUnOpenMenu(UnOpenListDeamon, false)
 
 ; 主菜单
-Menu, Tray, Icon, %A_ScriptDir%\resources\ahk.ico
-Menu, Tray, Click, 1
-Menu, Tray, Tip, AHK Script Manager
-Menu, Tray, Add, AHK Script Manager, Menu_Show
-Menu, Tray, ToggleEnable, AHK Script Manager
-Menu, Tray, Default, AHK Script Manager
-Menu, Tray, Add
-Menu, Tray, Add, 启动脚本(&S)`tCtrl + Alt + 左键, :scripts_unopen           ; S: Start
-Menu, Tray, Add
-Menu, Tray, Add, 重载脚本(&R)`tCtrl + Alt + 中键, :scripts_restart          ; R: Restart
-Menu, Tray, Add, 关闭脚本(&C)`tCtrl + Alt + 右键, :scripts_unclose          ; C: Close
-Menu, Tray, Add, 关闭所有脚本(&A)`tCtrl + Alt + A, tsk_closeAll             ; A: All
-Menu, Tray, Add
-Menu, Tray, Add, 进程管理(&P), tsk_showproc                                 ; P: Process
-Menu, Tray, Add
-Menu, Tray, Add, 打开源码目录(&D), Menu_Tray_OpenDir                        ; D: Directory
-Menu, Tray, Add
-Menu, Tray, Add, 重启Manager(&B), Menu_Tray_Reload                          ; B: reBoot
-Menu, Tray, Add
-Menu, Tray, Add, 退出(&X)`tCtrl + Alt + X, Menu_Tray_Exit
-Menu, Tray, NoStandard
+A_TrayMenu.Delete()
+A_TrayMenu.Add("AHK Script Manager","Menu_Tray_Handler")
+A_TrayMenu.Disable("AHK Script Manager")
+; A_TrayMenu.Add, AHK Script Manager, Menu_Show
+; A_TrayMenu.ToggleEnable, AHK Script Manager
+; A_TrayMenu.Default, AHK Script Manager
+A_TrayMenu.Add()
+A_TrayMenu.Add("启动脚本(&S)`tCtrl + Alt + 左键", scripts_unopen ) ; S: Start
+A_TrayMenu.Add()
+A_TrayMenu.Add("重载脚本(&R)`tCtrl + Alt + 中键", scripts_restart ) ; R: Restart
+A_TrayMenu.Add("关闭脚本(&C)`tCtrl + Alt + 右键", scripts_unclose ) ; C: Close
+A_TrayMenu.Add("关闭所有脚本(&A)`tCtrl + Alt + A", "TskCloseAll" ) ; A: All
+A_TrayMenu.Add()
+; A_TrayMenu.Add("进程管理(&P)", tsk_showproc ) ; P: Process
+A_TrayMenu.Add()
+A_TrayMenu.Add("打开源码目录(&D)", "Menu_Tray_OpenDir" ) ; D: Directory
+A_TrayMenu.Add()
+A_TrayMenu.Add("重启Manager(&B)", "Menu_Tray_Reload" ) ; B: reBoot
+A_TrayMenu.Add()
+A_TrayMenu.Add( "退出(&X)`tCtrl + Alt + X", "Menu_Tray_Exit")
+; A_TrayMenu.NoStandard
 
 ; 程序启动时，加载所有可启动脚本
-GoSub tsk_openAll
-
-Return
+TskOpenAll()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                     快捷键设置                        ;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-; Ctrl + Alt + LButton, 启动
-^!LButton::
-    Menu, scripts_unopen, Show
-Return
-
-; Ctrl + Alt + RButton, 关闭
-^!RButton::
-    Menu, scripts_unclose, Show
-Return
-
-; Ctrl + Alt + MButton, 重载
-^!MButton::
-    Menu, scripts_restart, Show
-Return
-
-; Ctrl + Alt + A, 关闭所有
-^!A::
-    Goto tsk_closeAll
-Return
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                     菜单事件响应                      ;
+; 菜单事件响应 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; 启动选中脚本
-tsk_open:
-    Loop, %scriptCount%
+TskOpenHandler(ItemName, ItemPos, Menu){
+    Loop(scriptCount)
     {
-        thisScript := scriptsName%A_Index%
-        if thisScript = %A_ThisMenuItem%.ahk
+        thisScript := ScriptList[A_Index]
+        if (thisScript = ItemName . ".ahk")
         {
-            IfWinNotExist, %thisScript% - AutoHotkey    ; 没有打开
-                Run, %A_ScriptDir%\scripts\%thisScript%
-    
-            IfInString, thisScript, + ; 文件名中含"+"表示非驻守脚本
+            if !WinExist(thisScript . " - AutoHotkey", "", "", "") ; 没有打开
+                Run(A_ScriptDir "\scripts\" thisScript)
+            
+            if InStr(thisScript, "+", (A_StringCaseSense="On") ? true : false) ; 文件名中含"+"表示非驻守脚本
                 Break
-    
-            scriptsOpened%A_Index% := 1
-            Break
-        }
-    }
-GoSub RecreateMenus
-Return
-
-; 关闭选中脚本
-tsk_close:
-    Loop, %scriptCount%
-    {
-        thisScript := scriptsName%A_Index%
-        if thisScript = %A_ThisMenuItem%.ahk
-        {
-            WinClose, %thisScript% - AutoHotkey
-            scriptsOpened%A_Index% := 0
+            
+            ScriptStatus[A_Index] := 1
             Break
         }
     }
     GoSub RecreateMenus
-Return
+    Return
+}
 
-; 重新启动选中脚本
-tsk_restart:
-    Loop, %scriptCount%
+; 关闭选中脚本
+TskClose(ItemName, ItemPos, Menu){
+    Loop(scriptCount)
     {
-        thisScript := scriptsName%A_Index%
-        if thisScript = %A_ThisMenuItem%.ahk
+        thisScript := ScriptList[A_Index]
+        if (thisScript = ItemName . ".ahk")
         {
-            WinClose, %thisScript% - AutoHotkey
-            Run, %A_ScriptDir%\scripts\%thisScript%
+            WinClose(thisScript " - AutoHotkey")
+            ScriptStatus[A_Index] := 0
             Break
         }
     }
-Return
+    GoSub RecreateMenus
+    Return
+}
+; 重新启动选中脚本
+TskRestartHandler(ItemName, ItemPos, Menu){
+    Loop(scriptCount)
+    {
+        thisScript := ScriptList[A_Index]
+        if (thisScript = ItemName . ".ahk")
+        {
+            WinClose(thisScript " - AutoHotkey")
+            Run(A_ScriptDir "\scripts\" thisScript)
+            Break
+        }
+    }
+    Return
+}
 
 ; 启动所有驻守脚本，从读文件开始就已经被排序了，所以无需排序
-tsk_openAll:
-    Loop, %scriptCount%
+TskOpenAll(){
+    Loop(scriptCount)
     {
-        thisScript := scriptsName%A_Index%
-        if scriptsOpened%A_Index% = 0 ; 没打开
+        thisScript := ScriptList[A_Index]
+        if ScriptStatus[A_Index] = 0 ; 没打开
         {
-            IfInString, thisScript, ! ; 文件名中含"!"表示临时驻守脚本，则不启动
+            if InStr(thisScript, "!", (A_StringCaseSense="On") ? true : false) ; 文件名中含"!"表示临时驻守脚本，则不启动
             {
                 if scriptsExisted%A_Index% != 1 ; AHK Manager启动前该脚本未启动
                     Continue
             }
-    
-            IfInString, thisScript, + ; 文件名中含"+"表示非驻守脚本，不启动
+            
+            if InStr(thisScript, "+", (A_StringCaseSense="On") ? true : false) ; 文件名中含"+"表示非驻守脚本，不启动
             {
                 if scriptsExisted%A_Index% != 1
                     Continue
             }
-    
-            IfWinNotExist, %thisScript% - AutoHotkey ; 没有打开
+            
+            if !WinExist(thisScript . " - AutoHotkey", "", "", "") ; 没有打开
             {
-                Run, %A_ScriptDir%\scripts\%thisScript%
-    
-                scriptsOpened%A_Index% = 1
-                StringRePlace, menuName, thisScript, .ahk
-                Menu, scripts_unclose, Add, %menuName%, tsk_close
-                Menu, scripts_restart, Add, %menuName%, tsk_restart
-                Menu, scripts_unopen, Delete, %menuName%
+                Run(A_ScriptDir "\scripts\" thisScript)
+                ScriptStatus[A_Index] := 1
+                menuName := StrReplace(thisScript, ".ahk",,, 1)
+                scripts_unclose.Add(menuName, "TskClose")
+                scripts_restart.Add(menuName, "TskRestartHandler")
+                scripts_unopen.Delete(menuName)
             }
         }
     }
-Return
-
-; 在ListView控件中显示脚本进程PID
-tsk_showproc:
-    WmiInfo := GetWMI("AutoHotkey.exe")
-    ShowIndex := 0
-    Gui, Font, s9, Arial
-    Gui, Add, ListView, x2 y0 w250 h200, Index|PID|Script Name|Memory
-    Loop, %scriptCount%
-    {
-        thisScript := scriptsName%A_Index%
-        if scriptsOpened%A_Index% = 1 ; 已打开
-        {
-            ShowIndex += 1
-            WinGet, procId, PID, %thisScript% - AutoHotkey
-            memory := GetMemory(WmiInfo, procId)
-            LV_Add("", ShowIndex, procId, thisScript, memory)
-        }
-    }
-    LV_ModifyCol() ; 根据内容自动调整每列的大小
-    Gui, Show,, Process List
-Return
-
-; 关闭ListView控件
-GuiClose:
-    Gui, Destroy
-Return
+    Return
+}
 
 ; 关闭所有脚本
-tsk_closeAll:
-    Loop, %scriptCount%
+TskCloseAll(ItemName, ItemPos, Menu){
+    Loop(scriptCount)
     {
-        thisScript := scriptsName%A_Index%
-        if scriptsOpened%A_Index% = 1 ; 已打开
+        thisScript := ScriptList[A_Index]
+        if(ScriptStatus[A_Index] = 1) ; 已打开
         {
-            WinClose, %thisScript% - AutoHotkey
-            scriptsOpened%A_Index% = 0
-    
-            StringRePlace, menuName, thisScript, .ahk
-            Menu, scripts_unopen, Add, %menuName%, tsk_open
-            Menu, scripts_unclose, Delete, %menuName%
-            Menu, scripts_restart, Delete, %menuName%
+            WinClose(thisScript " - AutoHotkey")
+            ScriptStatus[A_Index] := 0
+
+            
+            menuName:=StrReplace(thisScript, ".ahk",,, 1)
+            scripts_unopen.Add(menuName, "TskOpenHandler")
+            scripts_unclose.Delete(menuName)
+            scripts_restart.Delete(menuName)
         }
     }
-Return
+    Return
+}
 
 ; 打开源码目录
-Menu_Tray_OpenDir:
-    Run, %A_ScriptDir%\scripts,, Max
-Return
+Menu_Tray_OpenDir(ItemName, ItemPos, Menu){
+    Run(A_ScriptDir "\scripts",, "Max")
+    Return
+}
 
 ; 重启Manager
-Menu_Tray_Reload:
+Menu_Tray_Reload(ItemName, ItemPos, Menu){
     Reload
-Return
+    Return
+}
 
 ; 退出
-Menu_Tray_Exit:
+Menu_Tray_Exit(ItemName, ItemPos, Menu){
     ExitApp
-Return
-
-Menu_Show:
-    Menu, Tray, Show
-Return
+    Return
+}
+Menu_Tray_Handler(ItemName, ItemPos, Menu){
+    Return
+}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                     创建菜单                          ;
+; 创建菜单 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; 创建子菜单
-CreateMenus:
-    ; "启动脚本"子菜单
-    Menu, scripts_unopen, Add, 启动脚本, Menu_Tray_Exit
-    Menu, scripts_unopen, ToggleEnable, 启动脚本
-    Menu, scripts_unopen, Default, 启动脚本
-    Menu, scripts_unopen, Add
-
-    ; "关闭脚本"子菜单
-    Menu, scripts_unclose, Add, 关闭脚本, Menu_Tray_Exit
-    Menu, scripts_unclose, ToggleEnable, 关闭脚本
-    Menu, scripts_unclose, Default, 关闭脚本
-    Menu, scripts_unclose, Add
-
-    ; "重载脚本"子菜单
-    Menu, scripts_restart, Add, 重载脚本, Menu_Tray_Exit
-    Menu, scripts_restart, ToggleEnable, 重载脚本
-    Menu, scripts_restart, Default, 重载脚本
-    Menu, scripts_restart, Add
-Return
-
+CreateMenus(input_menu){
+    input_menu.Add("启动脚本", "Menu_Tray_Exit")
+    input_menu.ToggleEnable("启动脚本")
+    input_menu.Add()
+    Return
+}
 ; 重建子菜单
 RecreateMenus:
-    Menu, scripts_unopen, DeleteAll     ; 剩下空菜单
-    Menu, scripts_unclose, DeleteAll    ; 剩下空菜单
-    Menu, scripts_restart, DeleteAll    ; 剩下空菜单
-
-    GoSub CreateMenus
-
+    scripts_unopen.Delete() ; 剩下空菜单
+    scripts_unclose.Delete() ; 剩下空菜单
+    scripts_restart.Delete() ; 剩下空菜单
+    
+    CreateMenus(scripts_restart)
+    CreateMenus(scripts_unclose)
+    CreateMenus(scripts_unopen)
+    
     OpenListTemp := Array()
     OpenListDeamon := Array()
-
+    
     UnOpenListTemp := Array()
     UnOpenListOnce := Array()
     UnOpenListDeamon := Array()
-
-    Loop, %scriptCount%
+    
+    Loop(scriptCount)
     {
-		StringTrimRight, menuName, scriptsName%A_Index%, StrLen(".ahk")
-        if scriptsOpened%A_Index% = 1
-		{
-			IfInString, menuName, ! ; 文件名中含"!"表示临时驻守脚本
-			{
-				OpenListTemp.Insert(menuName)
-				Continue
-			}
-
-            OpenListDeamon.Insert(menuName)
-		}
-		else if scriptsOpened%A_Index% = 0
-		{
-			IfInString, menuName, ! ; 文件名中含"!"表示临时驻守脚本
-			{
-            	UnOpenListTemp.Insert(menuName)
-				Continue
-			}
-
-    		IfInString, menuName, + ; 文件名中含"+"表示非驻守脚本
-			{
-				UnOpenListOnce.Insert(menuName)
-				Continue
-			}
-
-			UnOpenListDeamon.Insert(menuName)
-		}
+        menuName := SubStr(ScriptList[A_Index], 1, -1*(StrLen(".ahk")))
+        if ScriptStatus[A_Index] = 1
+        {
+            if InStr(menuName, "!", (A_StringCaseSense="On") ? true : false) ; 文件名中含"!"表示临时驻守脚本
+            {
+                OpenListTemp.Push(menuName)
+                Continue
+            }
+            
+            OpenListDeamon.Push(menuName)
+        }
+        else if ScriptStatus[A_Index] = 0
+        {
+            if InStr(menuName, "!", (A_StringCaseSense="On") ? true : false) ; 文件名中含"!"表示临时驻守脚本
+            {
+                UnOpenListTemp.Push(menuName)
+                Continue
+            }
+            
+            if InStr(menuName, "+", (A_StringCaseSense="On") ? true : false) ; 文件名中含"+"表示非驻守脚本
+            {
+                UnOpenListOnce.Push(menuName)
+                Continue
+            }
+            
+            UnOpenListDeamon.Push(menuName)
+        }
     }
     
-	; 依次添加脚本到重载脚本/关闭脚本菜单，类型间加入分隔线
-	AddToOpenMenu(OpenListTemp)
-	AddToOpenMenu(OpenListDeamon, false)
+    ; 依次添加脚本到重载脚本/关闭脚本菜单，类型间加入分隔线
+    AddToOpenMenu(OpenListTemp)
+    AddToOpenMenu(OpenListDeamon, false)
     
-	; 依次添加脚本到启动脚本菜单，类型间加入分隔线
-	AddToUnOpenMenu(UnOpenListTemp)
-	AddToUnOpenMenu(UnOpenListOnce)
-	AddToUnOpenMenu(UnOpenListDeamon, false)
+    ; 依次添加脚本到启动脚本菜单，类型间加入分隔线
+    AddToUnOpenMenu(UnOpenListTemp)
+    AddToUnOpenMenu(UnOpenListOnce)
+    AddToUnOpenMenu(UnOpenListDeamon, false)
 Return
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                     程序清理                          ;
+; 程序清理 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-ExitSub:
-    Loop, %scriptCount%
+ExitSub(ExitReason, ExitCode){
+    Loop(scriptCount)
     {
-        thisScript := scriptsName%A_Index%
-        if scriptsOpened%A_Index% = 1 ; 已打开
+        thisScript := ScriptList[A_Index]
+        if ScriptStatus[A_Index] = 1 ; 已打开
         {
-            WinClose, %thisScript% - AutoHotkey
-            scriptsOpened%A_Index% = 0
-
-            StringRePlace, menuName, thisScript, .ahk
+            WinClose(thisScript " - AutoHotkey")
+            ScriptStatus[A_Index] := 0
+            
+            ; StrReplace(menuName, thisScript, ".ahk",, 1)
         }
     }
-    Menu, Tray, NoIcon
+    ; Menu, Tray, NoIcon
     ExitApp
-Return
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;                       函数                            ;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-; 给定进程名称，返回该进程的所有信息
-GetWMI(ProcessName)
-{
-    objWMI := ComObjGet("winmgmts:\\.\root\cimv2")    ; 连接到WMI服务
-    StrSql := "SELECT * FROM Win32_Process WHERE Name="""
-    StrSql .= ProcessName
-    StrSql .= """"
-    Info := objWMI.ExecQuery(StrSql)
-    Return Info
+    Return
 }
 
-; 给定进程PID，获取其内存消耗
-GetMemory(WmiInfo, PID)
-{
-    for ObjProc in WmiInfo
-    {
-        if (ObjProc.ProcessID = PID)
-        {
-            usage := Round(ObjProc.WorkingSetSize / 1024)
-            Return % usage . "K"
-        }
-    }
-
-    Return "0K"
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 函数 ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; 为启动脚本菜单添加一种类型的脚本
-AddToUnOpenMenu(UnOpenList, AllowSplit=true)
+AddToUnOpenMenu(UnOpenList, AllowSplit:=true)
 {
-	InsertionSort(UnOpenList)
-	for Index, menuName in UnOpenList
-		Menu, scripts_unopen, add, %menuName%, tsk_open
-	
-	; 必要时加分隔线
-	if (AllowSplit = true)
-	{
-		for Files in UnOpenList
-		{
-			Menu, scripts_unopen, Add
-			Break
-		}
-	}
+    InsertionSort(UnOpenList)
+    for Index, menuName in UnOpenList
+        scripts_unopen.Add(menuName, "TskOpenHandler")
+    
+    ; 必要时加分隔线
+    if (AllowSplit = true)
+    {
+        for Files in UnOpenList
+        {
+            scripts_unopen.Add()
+            Break
+        }
+    }
 }
 
 ; 为重载脚本/关闭脚本菜单添加一种类型的脚本
-AddToOpenMenu(OpenList, AllowSplit=true)
+AddToOpenMenu(OpenList, AllowSplit:=true)
 {
-	InsertionSort(OpenList)
+    InsertionSort(OpenList)
     for Index, menuName in OpenList
     {
-        Menu, scripts_unclose, Add, %menuName%, tsk_close
-        Menu, scripts_restart, Add, %menuName%, tsk_restart
+        scripts_unclose.Add(menuName, "TskClose")
+        scripts_restart.Add(menuName, "TskRestartHandler")
     }
-
-	; 必要时加分隔线
-	if (AllowSplit = true)
-	{
-		for Files in OpenList
-		{
-			Menu, scripts_unclose, Add
-			Menu, scripts_restart, Add
-			Break
-		}
-	}
+    
+    ; 必要时加分隔线
+    if (AllowSplit = true)
+    {
+        for Files in OpenList
+        {
+            scripts_unclose.Add()
+            scripts_restart.Add()
+            Break
+        }
+    }
 }
 

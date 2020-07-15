@@ -36,9 +36,9 @@ InsertionSort(ByRef array)
 		j += 1
 	}
 	
-	Loop, %count%
+	Loop(count)
 	{
-		target.Insert(files%A_Index%)
+		target.Push(files%A_Index%)
 	}
 
 	array := target
