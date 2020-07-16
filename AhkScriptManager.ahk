@@ -33,9 +33,9 @@ global scripts_restart:=Menu.New() ; "重载脚本"子菜单
 global scripts_unclose:=Menu.New() ; "关闭脚本"子菜单
 global scripts_unopen:=Menu.New() ; "启动脚本"子菜单
 
-CreateMenus(scripts_restart)
-CreateMenus(scripts_unclose)
-CreateMenus(scripts_unopen)
+CreateMenus(scripts_restart, "重载脚本")
+CreateMenus(scripts_unclose, "关闭脚本")
+CreateMenus(scripts_unopen, "启动脚本")
 
 global ScriptList := Array() ;读取到的脚本
 global ScriptStatus := Array() ;脚本运行的状态 0-未运行 1-运行
@@ -59,18 +59,18 @@ A_TrayMenu.Delete()
 A_TrayMenu.Add("AHK Script Manager","Menu_Tray_Handler")
 A_TrayMenu.Disable("AHK Script Manager")
 A_TrayMenu.Add()
-A_TrayMenu.Add("启动脚本(&S)`tCtrl + Alt + 左键", scripts_unopen ) ; S: Start
+A_TrayMenu.Add("启动脚本(&S)", scripts_unopen ) ; S: Start
 A_TrayMenu.Add()
-A_TrayMenu.Add("重载脚本(&R)`tCtrl + Alt + 中键", scripts_restart ) ; R: Restart
-A_TrayMenu.Add("关闭脚本(&C)`tCtrl + Alt + 右键", scripts_unclose ) ; C: Close
-A_TrayMenu.Add("关闭所有脚本(&A)`tCtrl + Alt + A", "TskCloseAll" ) ; A: All
+A_TrayMenu.Add("重载脚本(&R)", scripts_restart ) ; R: Restart
+A_TrayMenu.Add("关闭脚本(&C)", scripts_unclose ) ; C: Close
+A_TrayMenu.Add("关闭所有脚本(&A)", "TskCloseAll" ) ; A: All
 A_TrayMenu.Add()
 A_TrayMenu.Add()
 A_TrayMenu.Add("打开源码目录(&D)", "Menu_Tray_OpenDir" ) ; D: Directory
 A_TrayMenu.Add()
 A_TrayMenu.Add("重启Manager(&B)", "Menu_Tray_Reload" ) ; B: reBoot
 A_TrayMenu.Add()
-A_TrayMenu.Add( "退出(&X)`tCtrl + Alt + X", "Menu_Tray_Exit")
+A_TrayMenu.Add( "退出(&X)", "Menu_Tray_Exit")
 
 ; 依次添加脚本到启动脚本菜单，类型间加入分隔线
 ScriptName:=Array()
@@ -189,9 +189,10 @@ Menu_Tray_Handler(ItemName, ItemPos, Menu){
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; 创建子菜单
-CreateMenus(input_menu){
-    input_menu.Add("启动脚本", "Menu_Tray_Exit")
-    input_menu.ToggleEnable("启动脚本")
+CreateMenus(input_menu, title:="启动脚本"){
+    input_menu.Add(title, "Menu_Tray_Handler")
+    input_menu.Disable(title)
+    ; input_menu.Check("启动脚本")
     input_menu.Add()
     Return
 }
@@ -201,9 +202,9 @@ RecreateMenus(){
     scripts_unclose.Delete() ; 剩下空菜单
     scripts_restart.Delete() ; 剩下空菜单
     
-    CreateMenus(scripts_restart)
-    CreateMenus(scripts_unclose)
-    CreateMenus(scripts_unopen)
+    CreateMenus(scripts_restart, "重载脚本")
+    CreateMenus(scripts_unclose, "关闭脚本")
+    CreateMenus(scripts_unopen, "启动脚本")
     
     OpenList := Array()
     UnOpenList := Array()
