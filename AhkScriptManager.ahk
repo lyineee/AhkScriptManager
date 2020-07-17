@@ -12,7 +12,10 @@
 #Persistent
 #SingleInstance force
 
-SetWorkingDir(A_ScriptDir "\scripts\")
+TMP_DIR := "\tmp\"
+global SCRIPT_TMP_DIR := A_ScriptDir TMP_DIR
+global SCRIPT_DIR := A_ScriptDir "\scripts\"
+SetWorkingDir(A_ScriptDir)
 
 DetectHiddenWindows True ; 允许探测脚本中隐藏的主窗口. 很多子程序均是以隐藏方式运行的
 SetTitleMatchMode 2 ; 避免需要指定如下所示的文件的完整路径
@@ -35,11 +38,16 @@ global restartScriptListTray := Menu.New() ;
 global ScriptList := Array() ;读取到的脚本
 global ScriptStatus := Array() ;脚本运行的状态 0-未运行 1-运行
 
-; 遍历scripts目录下的ahk文件
-Loop Files (A_ScriptDir "\scripts\*.ahk"){
+; 初始化临时文件夹
+if(!DirExist(SCRIPT_TMP_DIR))
+    DirCreate(SCRIPT_TMP_DIR)
+FileCopy(SCRIPT_DIR "*.ahk", SCRIPT_TMP_DIR "*.*", 1)
+
+; 遍历SCRIPT_TMP_DIR下的ahk文件
+Loop Files (SCRIPT_TMP_DIR "*.ahk"){
     menuName := SubStr(A_LoopFileName, 1, -1*(StrLen(".ahk")))
     scriptCount += 1
-    
+    FileAppend("#NoTrayIcon",SCRIPT_TMP_DIR A_LoopFileName) ; 设置不出现在托盘
     ; 已经打开则关闭，否则无法被AHK Manager接管
     if(WinExist(A_LoopFileName . " - AutoHotkey"))
         WinKill
@@ -82,7 +90,7 @@ TskToggleHandler(ItemName, ItemPos, Menu){
         if(item=ItemName_ext){
             index := A_Index
             if(!WinExist(ItemName_ext . " - AutoHotkey")){ ; 没有打开
-                Run(A_ScriptDir "\scripts\" ItemName_ext)
+                Run(SCRIPT_TMP_DIR ItemName_ext)
                 ScriptStatus[index] := 1
             }else{
                 WinClose(ItemName_ext " - AutoHotkey")
@@ -100,7 +108,7 @@ TskRestartHandler(ItemName, ItemPos, Menu){
         thisScript := ScriptList[A_Index]
         if(thisScript = ItemName . ".ahk"){
             WinClose(thisScript " - AutoHotkey")
-            Run(A_ScriptDir "\scripts\" thisScript)
+            Run(SCRIPT_TMP_DIR thisScript)
             Break
         }
     }
@@ -113,7 +121,7 @@ TskOpenAll(){
         thisScript := ScriptList[A_Index]
         if(ScriptStatus[A_Index] = 0){ ; 没打开
             if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
-                Run(A_ScriptDir "\scripts\" thisScript)
+                Run(SCRIPT_TMP_DIR thisScript)
                 ScriptStatus[A_Index] := 1
             }
         }
@@ -127,7 +135,7 @@ TskOpenAllHandler(ItemName, ItemPos, Menu){
         thisScript := ScriptList[A_Index]
         if(ScriptStatus[A_Index] = 0){ ; 没打开
             if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
-                Run(A_ScriptDir "\scripts\" thisScript)
+                Run(SCRIPT_TMP_DIR thisScript)
                 ScriptStatus[A_Index] := 1
             }
         }
@@ -152,7 +160,7 @@ TskCloseAllHandler(ItemName, ItemPos, Menu){
 
 ; 打开源码目录
 Menu_Tray_OpenDir(ItemName, ItemPos, Menu){
-    Run(A_ScriptDir "\scripts",, "Max")
+    Run(A_ScriptDir SCRIPT_DIR,, "Max")
     Return
 }
 
@@ -213,6 +221,7 @@ ExitSub(ExitReason, ExitCode){
             ScriptStatus[A_Index] := 0
         }
     }
+    FileDelete(SCRIPT_TMP_DIR "*")
     ExitApp
     Return
 }
