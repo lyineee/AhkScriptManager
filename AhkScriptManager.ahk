@@ -160,7 +160,7 @@ TskCloseAllHandler(ItemName, ItemPos, Menu){
 
 ; 打开源码目录
 Menu_Tray_OpenDir(ItemName, ItemPos, Menu){
-    Run(A_ScriptDir SCRIPT_DIR,, "Max")
+    Run(SCRIPT_DIR,, "Max")
     Return
 }
 
@@ -216,9 +216,8 @@ RecreateMenus(){
 ExitSub(ExitReason, ExitCode){
     Loop(scriptCount){
         thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 1){ ; 已打开
+        if(WinExist(thisScript " - AutoHotkey")){ ; 已打开
             WinClose(thisScript " - AutoHotkey")
-            ScriptStatus[A_Index] := 0
         }
     }
     FileDelete(SCRIPT_TMP_DIR "*")
