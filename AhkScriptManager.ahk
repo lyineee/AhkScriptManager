@@ -51,7 +51,7 @@ Loop Files (SCRIPT_TMP_DIR "*.ahk"){
     ; 已经打开则关闭，否则无法被AHK Manager接管
     if(WinExist(A_LoopFileName . " - AutoHotkey"))
         WinKill
-    
+
     ScriptList.InsertAt(scriptCount,A_LoopFileName)
     InsertionSort(ScriptList)
     ScriptStatus.InsertAt(scriptCount,0)
@@ -217,7 +217,9 @@ ExitSub(ExitReason, ExitCode){
     Loop(scriptCount){
         thisScript := ScriptList[A_Index]
         if(WinExist(thisScript " - AutoHotkey")){ ; 已打开
-            WinClose(thisScript " - AutoHotkey")
+            try{
+                WinClose(thisScript " - AutoHotkey")
+            }
         }
     }
     FileDelete(SCRIPT_TMP_DIR "*")
