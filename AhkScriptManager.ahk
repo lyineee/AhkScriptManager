@@ -151,7 +151,7 @@ TskOpenAllHandler(ItemName, ItemPos, Menu){
 TskCloseAllHandler(ItemName, ItemPos, Menu){
     Loop(scriptCount){
         thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 1){ ; 已打开
+        if(ScriptStatus[A_Index] = 1 && WinExist(thisScript . " - AutoHotkey")){ ; 已打开
             WinClose(thisScript " - AutoHotkey")
             ScriptStatus[A_Index] := 0
             menuName:=StrReplace(thisScript, ".ahk",,, 1)
@@ -203,6 +203,12 @@ RecreateMenus(){
     CreateMenus(scriptListTray, "脚本列表")
 
     for menuName_ext in ScriptList{
+        ; refresh script status
+        ; MsgBox menuName_ext
+        ; if(WinExist(menuName_ext . " - AutoHotkey"))
+        ;     ScriptStatus[A_Index] := 1
+        ; Else
+        ;     ScriptStatus[A_Index] := 0
         menuName:=StrReplace(menuName_ext,".ahk")
         scriptListTray.Add(menuName, "TskToggleHandler")
         if(ScriptStatus[A_Index]){
