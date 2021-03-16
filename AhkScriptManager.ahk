@@ -15,6 +15,7 @@
 TMP_DIR := "\tmp\"
 global SCRIPT_TMP_DIR := A_ScriptDir TMP_DIR
 global SCRIPT_DIR := A_ScriptDir "\scripts\"
+global INI_FILE := A_ScriptDir "\setting.ini"
 SetWorkingDir(A_ScriptDir)
 
 DetectHiddenWindows True ; 允许探测脚本中隐藏的主窗口. 很多子程序均是以隐藏方式运行的
@@ -92,9 +93,11 @@ TskToggleHandler(ItemName, ItemPos, Menu){
             if(!WinExist(ItemName_ext . " - AutoHotkey")){ ; 没有打开
                 Run(SCRIPT_TMP_DIR ItemName_ext)
                 ScriptStatus[index] := 1
+                setAutoLauch(ItemName, True)
             }else{
                 WinClose(ItemName_ext " - AutoHotkey")
                 ScriptStatus[index] := 0
+                setAutoLauch(ItemName, False)
             }
         }
     }
@@ -119,7 +122,7 @@ TskRestartHandler(ItemName, ItemPos, Menu){
 TskOpenAll(){
     Loop(scriptCount){
         thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 0){ ; 没打开
+        if(ScriptStatus[A_Index] = 0 && isAutoLaunch(StrReplace(thisScript,".ahk"))){ ; 程序没打开且在默认打开列表中
             if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
                 Run(SCRIPT_TMP_DIR thisScript)
                 ScriptStatus[A_Index] := 1
@@ -209,6 +212,18 @@ RecreateMenus(){
             scriptListTray.unCheck(menuName)
     }
 }
+
+; get setting
+isAutoLaunch(scriptName){
+    Return IniRead(INI_FILE, "AutoLauch", scriptName, False)
+}
+
+; set setting
+setAutoLauch(scriptName, isAutoLaunch){
+    IniWrite(isAutoLaunch, INI_FILE, "AutoLauch", scriptName)
+    Return
+}
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; 程序清理 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
