@@ -204,10 +204,11 @@ RecreateMenus(){
 
     for menuName_ext in ScriptList{
         menuName:=StrReplace(menuName_ext,".ahk")
-        restartScriptListTray.Add(menuName,"TskRestartHandler") ; "重载脚本" 菜单
         scriptListTray.Add(menuName, "TskToggleHandler")
-        if(ScriptStatus[A_Index])
+        if(ScriptStatus[A_Index]){
+            restartScriptListTray.Add(menuName,"TskRestartHandler") ; "重载脚本" 菜单
             scriptListTray.Check(menuName)
+        }
         else
             scriptListTray.unCheck(menuName)
     }
