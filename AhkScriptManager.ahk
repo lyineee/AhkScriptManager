@@ -70,7 +70,6 @@ A_TrayMenu.Add("重载脚本(&R)", restartScriptListTray ) ; R: Restart
 A_TrayMenu.Add("启动所有脚本(&C)", "TskOpenAllHandler" ) ; C: Close
 A_TrayMenu.Add("关闭所有脚本(&A)", "TskCloseAllHandler" ) ; A: All
 A_TrayMenu.Add()
-A_TrayMenu.Add()
 A_TrayMenu.Add("打开源码目录(&D)", "Menu_Tray_OpenDir" ) ; D: Directory
 A_TrayMenu.Add()
 A_TrayMenu.Add("重启Manager(&B)", "Menu_Tray_Reload" ) ; B: reBoot
