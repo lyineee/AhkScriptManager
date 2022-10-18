@@ -87,6 +87,7 @@ TskToggleHandler(ItemName, ItemPos, Menu){
         if(item=ItemName_ext){
             index := A_Index
             if(!WinExist(ItemName_ext . " - AutoHotkey")){ ; 没有打开
+                FileCopy(SCRIPT_DIR ItemName_ext, SCRIPT_TMP_DIR ItemName_ext, 1)
                 Run(SCRIPT_TMP_DIR ItemName_ext)
                 ScriptStatus[index] := 1
                 setAutoLauch(ItemName, True)
@@ -107,6 +108,7 @@ TskRestartHandler(ItemName, ItemPos, Menu){
         thisScript := ScriptList[A_Index]
         if(thisScript = ItemName . ".ahk"){
             WinClose(thisScript " - AutoHotkey")
+            FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
             Run(SCRIPT_TMP_DIR thisScript)
             Break
         }
@@ -120,6 +122,7 @@ TskOpenAll(){
         thisScript := ScriptList[A_Index]
         if(ScriptStatus[A_Index] = 0 && isAutoLaunch(StrReplace(thisScript,".ahk"))){ ; 程序没打开且在默认打开列表中
             if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
+                FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
                 Run(SCRIPT_TMP_DIR thisScript)
                 ScriptStatus[A_Index] := 1
             }
@@ -134,6 +137,7 @@ TskOpenAllHandler(ItemName, ItemPos, Menu){
         thisScript := ScriptList[A_Index]
         if(ScriptStatus[A_Index] = 0){ ; 没打开
             if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
+                FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
                 Run(SCRIPT_TMP_DIR thisScript)
                 ScriptStatus[A_Index] := 1
             }
