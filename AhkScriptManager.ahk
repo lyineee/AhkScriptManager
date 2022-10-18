@@ -4,7 +4,6 @@
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; #Include lib/InsertionSort.ahk
 #Warn All, Off
 Persistent true
 #SingleInstance force
@@ -51,7 +50,6 @@ Loop Files (SCRIPT_TMP_DIR "*.ahk"){
         WinKill
 
     ScriptList.InsertAt(scriptCount,A_LoopFileName)
-    ; InsertionSort(&ScriptList)
     ScriptStatus.InsertAt(scriptCount,0)
 }
 
