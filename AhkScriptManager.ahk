@@ -200,6 +200,7 @@ CreateMenus(input_menu, title:="脚本列表"){
 RecreateMenus(){
     scriptListTray.Delete() ; 剩下空菜单
     CreateMenus(scriptListTray, "脚本列表")
+    hasScriptActive := False
 
     for menuName_ext in ScriptList{
         ; refresh script status
@@ -211,12 +212,18 @@ RecreateMenus(){
         menuName:=StrReplace(menuName_ext,".ahk")
         scriptListTray.Add(menuName, TskToggleHandler)
         if(ScriptStatus[A_Index]){
+            hasScriptActive := True
             restartScriptListTray.Add(menuName,TskRestartHandler) ; "重载脚本" 菜单
             scriptListTray.Check(menuName)
         }
         else
             scriptListTray.unCheck(menuName)
     }
+    if (hasScriptActive)
+        A_TrayMenu.Enable("重载脚本(&R)")
+    Else
+        A_TrayMenu.Disable("重载脚本(&R)")
+    
 }
 
 ; get setting
