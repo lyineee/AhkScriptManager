@@ -32,8 +32,7 @@ OnExit(ExitSub)
 global scriptListTray:=Menu() ; "启动脚本"子菜单
 global restartScriptListTray := Menu() ;
 
-global ScriptList := Array() ;读取到的脚本
-global ScriptStatus := Array() ;脚本运行的状态 0-未运行 1-运行
+global ScriptStatus := Map() ;脚本运行的状态 [脚本名]:[pid default:0]
 
 ; 初始化临时文件夹
 if(!DirExist(SCRIPT_TMP_DIR))
@@ -43,14 +42,11 @@ FileCopy(SCRIPT_DIR "*.ahk", SCRIPT_TMP_DIR "*.*", 1)
 ; 遍历SCRIPT_TMP_DIR下的ahk文件
 Loop Files (SCRIPT_TMP_DIR "*.ahk"){
     menuName := SubStr(A_LoopFileName, 1, -1*(StrLen(".ahk")))
-    scriptCount += 1
     FileAppend("#NoTrayIcon",SCRIPT_TMP_DIR A_LoopFileName) ; 设置不出现在托盘
     ; 已经打开则关闭，否则无法被AHK Manager接管
     if(WinExist(A_LoopFileName . " - AutoHotkey"))
         WinKill
-
-    ScriptList.InsertAt(scriptCount,A_LoopFileName)
-    ScriptStatus.InsertAt(scriptCount,0)
+    ScriptStatus[menuName] := 0
 }
 
 ; 主菜单
@@ -80,21 +76,12 @@ TskOpenAll()
 
 ; 开/关选中脚本
 TskToggleHandler(ItemName, ItemPos, Menu){
-    for item in ScriptList{
-        ItemName_ext := ItemName ".ahk"
-        if(item=ItemName_ext){
-            index := A_Index
-            if(!WinExist(ItemName_ext . " - AutoHotkey")){ ; 没有打开
-                FileCopy(SCRIPT_DIR ItemName_ext, SCRIPT_TMP_DIR ItemName_ext, 1)
-                Run(SCRIPT_TMP_DIR ItemName_ext)
-                ScriptStatus[index] := 1
-                setAutoLauch(ItemName, True)
-            }else{
-                WinClose(ItemName_ext " - AutoHotkey")
-                ScriptStatus[index] := 0
-                setAutoLauch(ItemName, False)
-            }
-        }
+    FileCopy(SCRIPT_DIR ItemName ".ahk", SCRIPT_TMP_DIR ItemName ".ahk", 1)
+    RefreshStatus()
+    if(ScriptStatus[ItemName] = 0){
+        RunScript(ItemName)
+    }else{
+        StopScript(ItemName)
     }
     RecreateMenus()
     Return
@@ -102,28 +89,19 @@ TskToggleHandler(ItemName, ItemPos, Menu){
 
 ; 重新启动选中脚本
 TskRestartHandler(ItemName, ItemPos, Menu){
-    Loop(scriptCount){
-        thisScript := ScriptList[A_Index]
-        if(thisScript = ItemName . ".ahk"){
-            WinClose(thisScript " - AutoHotkey")
-            FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
-            Run(SCRIPT_TMP_DIR thisScript)
-            Break
-        }
-    }
+    StopScript(ItemName, False)
+    RunScript(ItemName)
+    RefreshStatus()
     Return
 }
 
 ; 启动所有驻守脚本，从读文件开始就已经被排序了，所以无需排序
 TskOpenAll(){
-    Loop(scriptCount){
-        thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 0 && isAutoLaunch(StrReplace(thisScript,".ahk"))){ ; 程序没打开且在默认打开列表中
-            if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
-                FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
-                Run(SCRIPT_TMP_DIR thisScript)
-                ScriptStatus[A_Index] := 1
-            }
+    RefreshStatus()
+    for ScriptName, pid in ScriptStatus{
+        if(pid = 0 && isAutoLaunch(ScriptName)){
+            FileCopy(SCRIPT_DIR ScriptName ".ahk", SCRIPT_TMP_DIR ScriptName ".ahk", 1)
+            RunScript(ScriptName)
         }
     }
     RecreateMenus() ; refresh menu
@@ -131,14 +109,11 @@ TskOpenAll(){
 }
 
 TskOpenAllHandler(ItemName, ItemPos, Menu){
-    Loop(scriptCount){
-        thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 0){ ; 没打开
-            if(!WinExist(thisScript . " - AutoHotkey")){ ; 没有打开
-                FileCopy(SCRIPT_DIR thisScript, SCRIPT_TMP_DIR thisScript, 1)
-                Run(SCRIPT_TMP_DIR thisScript)
-                ScriptStatus[A_Index] := 1
-            }
+    RefreshStatus()
+    for ScriptName, pid in ScriptStatus{
+        if(pid = 0){
+            FileCopy(SCRIPT_DIR ScriptName ".ahk", SCRIPT_TMP_DIR ScriptName ".ahk", 1)
+            RunScript(ScriptName, False)
         }
     }
     RecreateMenus() ; refresh menu
@@ -147,18 +122,50 @@ TskOpenAllHandler(ItemName, ItemPos, Menu){
 
 ; 关闭所有脚本
 TskCloseAllHandler(ItemName, ItemPos, Menu){
-    Loop(scriptCount){
-        thisScript := ScriptList[A_Index]
-        if(ScriptStatus[A_Index] = 1 && WinExist(thisScript . " - AutoHotkey")){ ; 已打开
-            WinClose(thisScript " - AutoHotkey")
-            ScriptStatus[A_Index] := 0
-            menuName:=StrReplace(thisScript, ".ahk",,, 1)
+    RefreshStatus()
+    for ScriptName, pid in ScriptStatus{
+        if(pid != 0){
+            StopScript(ScriptName, False)
         }
     }
     RecreateMenus() ; refresh menu
     Return
 }
 
+; 启动脚本
+RunScript(ScriptName, SaveState := True){
+    if(SaveState){
+        setAutoLauch(ScriptName, True) ; set auto launch
+    }
+    pid := 0
+    Run(SCRIPT_TMP_DIR ScriptName ".ahk",,,&pid)
+    ProcessWait(pid, 0.5)
+    ScriptStatus[ScriptName] := pid
+}
+
+StopScript(ScriptName, SaveState := True){
+    if(SaveState){
+        setAutoLauch(ScriptName, True) ; set auto launch
+    }
+    setAutoLauch(ScriptName, False) ; set auto launch
+    ProcessClose(ScriptStatus[ScriptName])
+    ProcessWaitClose(ScriptStatus[ScriptName], 0.5)
+    ScriptStatus[ScriptName] := 0
+}
+
+RefreshStatus(){
+    for ScriptName, pid in ScriptStatus{
+        if (pid != 0){
+            if(ProcessExist(pid) = 0){
+                RunScript(ScriptName)
+            }
+        }else{
+            if(ProcessExist(pid) != 0){
+                ProcessClose(pid)
+            }
+        }
+    }
+}
 
 ; 打开源码目录
 Menu_Tray_OpenDir(ItemName, ItemPos, Menu){
@@ -200,30 +207,18 @@ CreateMenus(input_menu, title:="脚本列表"){
 RecreateMenus(){
     scriptListTray.Delete() ; 剩下空菜单
     CreateMenus(scriptListTray, "脚本列表")
-    hasScriptActive := False
-
-    for menuName_ext in ScriptList{
-        ; refresh script status
-        ; MsgBox menuName_ext
-        ; if(WinExist(menuName_ext . " - AutoHotkey"))
-        ;     ScriptStatus[A_Index] := 1
-        ; Else
-        ;     ScriptStatus[A_Index] := 0
-        menuName:=StrReplace(menuName_ext,".ahk")
-        scriptListTray.Add(menuName, TskToggleHandler)
-        if(ScriptStatus[A_Index]){
-            hasScriptActive := True
-            restartScriptListTray.Add(menuName,TskRestartHandler) ; "重载脚本" 菜单
-            scriptListTray.Check(menuName)
+    A_TrayMenu.Disable("重载脚本(&R)")
+    RefreshStatus()
+    for ScriptName, pid in ScriptStatus{
+        scriptListTray.Add(ScriptName, TskToggleHandler)
+        if(pid != 0){
+            scriptListTray.Check(ScriptName)
+            restartScriptListTray.Add(ScriptName, TskRestartHandler)
+            A_TrayMenu.Enable("重载脚本(&R)")
         }
-        else
-            scriptListTray.unCheck(menuName)
+        Else
+            scriptListTray.unCheck(ScriptName)
     }
-    if (hasScriptActive)
-        A_TrayMenu.Enable("重载脚本(&R)")
-    Else
-        A_TrayMenu.Disable("重载脚本(&R)")
-    
 }
 
 ; get setting
@@ -242,12 +237,10 @@ setAutoLauch(scriptName, isAutoLaunch){
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ExitSub(ExitReason, ExitCode){
-    Loop(scriptCount){
-        thisScript := ScriptList[A_Index]
-        if(WinExist(thisScript " - AutoHotkey")){ ; 已打开
-            try{
-                WinClose(thisScript " - AutoHotkey")
-            }
+    RefreshStatus()
+    for ScriptName, pid in ScriptStatus{
+        if(pid != 0){
+            StopScript(ScriptName, False)
         }
     }
     FileDelete(SCRIPT_TMP_DIR "*")
