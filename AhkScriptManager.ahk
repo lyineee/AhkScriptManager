@@ -37,12 +37,10 @@ global ScriptStatus := Map() ;脚本运行的状态 [脚本名]:[pid default:0]
 ; 初始化临时文件夹
 if(!DirExist(SCRIPT_TMP_DIR))
     DirCreate(SCRIPT_TMP_DIR)
-FileCopy(SCRIPT_DIR "*.ahk", SCRIPT_TMP_DIR "*.*", 1)
 
 ; 遍历SCRIPT_TMP_DIR下的ahk文件
-Loop Files (SCRIPT_TMP_DIR "*.ahk"){
+Loop Files (SCRIPT_DIR "*.ahk"){
     menuName := SubStr(A_LoopFileName, 1, -1*(StrLen(".ahk")))
-    FileAppend("#NoTrayIcon",SCRIPT_TMP_DIR A_LoopFileName) ; 设置不出现在托盘
     ; 已经打开则关闭，否则无法被AHK Manager接管
     if(WinExist(A_LoopFileName . " - AutoHotkey"))
         WinKill
@@ -76,7 +74,6 @@ TskOpenAll()
 
 ; 开/关选中脚本
 TskToggleHandler(ItemName, ItemPos, Menu){
-    FileCopy(SCRIPT_DIR ItemName ".ahk", SCRIPT_TMP_DIR ItemName ".ahk", 1)
     RefreshStatus()
     if(ScriptStatus[ItemName] = 0){
         RunScript(ItemName)
@@ -100,10 +97,10 @@ TskOpenAll(){
     RefreshStatus()
     for ScriptName, pid in ScriptStatus{
         if(pid = 0 && isAutoLaunch(ScriptName)){
-            FileCopy(SCRIPT_DIR ScriptName ".ahk", SCRIPT_TMP_DIR ScriptName ".ahk", 1)
             RunScript(ScriptName)
         }
     }
+    RefreshStatus()
     RecreateMenus() ; refresh menu
     Return
 }
@@ -112,7 +109,6 @@ TskOpenAllHandler(ItemName, ItemPos, Menu){
     RefreshStatus()
     for ScriptName, pid in ScriptStatus{
         if(pid = 0){
-            FileCopy(SCRIPT_DIR ScriptName ".ahk", SCRIPT_TMP_DIR ScriptName ".ahk", 1)
             RunScript(ScriptName, False)
         }
     }
@@ -138,6 +134,8 @@ RunScript(ScriptName, SaveState := True){
         setAutoLauch(ScriptName, True) ; set auto launch
     }
     pid := 0
+    FileCopy(SCRIPT_DIR ScriptName ".ahk", SCRIPT_TMP_DIR ScriptName ".ahk", 1)
+    FileAppend("#NoTrayIcon",SCRIPT_TMP_DIR ScriptName ".ahk") ; 设置不出现在托盘
     Run(SCRIPT_TMP_DIR ScriptName ".ahk",,,&pid)
     ProcessWait(pid, 0.5)
     ScriptStatus[ScriptName] := pid
@@ -145,9 +143,8 @@ RunScript(ScriptName, SaveState := True){
 
 StopScript(ScriptName, SaveState := True){
     if(SaveState){
-        setAutoLauch(ScriptName, True) ; set auto launch
+        setAutoLauch(ScriptName, False) ; set auto launch
     }
-    setAutoLauch(ScriptName, False) ; set auto launch
     ProcessClose(ScriptStatus[ScriptName])
     ProcessWaitClose(ScriptStatus[ScriptName], 0.5)
     ScriptStatus[ScriptName] := 0
@@ -157,7 +154,7 @@ RefreshStatus(){
     for ScriptName, pid in ScriptStatus{
         if (pid != 0){
             if(ProcessExist(pid) = 0){
-                RunScript(ScriptName)
+                RunScript(ScriptName, False)
             }
         }else{
             if(ProcessExist(pid) != 0){
