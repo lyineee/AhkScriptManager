@@ -12,6 +12,7 @@ TMP_DIR := "\tmp\"
 global SCRIPT_TMP_DIR := A_ScriptDir TMP_DIR
 global SCRIPT_DIR := A_ScriptDir "\scripts\"
 global INI_FILE := A_ScriptDir "\setting.ini"
+global ASSETS_DIR := A_ScriptDir "\resources\"
 SetWorkingDir(A_ScriptDir)
 
 DetectHiddenWindows True ; 允许探测脚本中隐藏的主窗口. 很多子程序均是以隐藏方式运行的
@@ -25,6 +26,7 @@ EnvSet("PATH", A_ScriptDir "\3rd") ;%Paths%	; 设置环境变量. 通过AhkScrip
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 OnExit(ExitSub)
+DownloadAssets()
 
 ; Declare tray item
 global scriptListTray:=Menu() ; "启动脚本"子菜单
@@ -65,6 +67,14 @@ A_TrayMenu.Add( "退出(&X)", Menu_Tray_Exit)
 
 ; 程序启动时，加载所有可启动脚本
 TskOpenAll()
+
+DownloadAssets(){
+    if(not FileExist(ASSETS_DIR "ahk.ico")){
+        DirCreate(ASSETS_DIR)
+        iconUrl := "https://raw.githubusercontent.com/lyineee/AhkScriptManager/master/resources/ahk.ico"
+        Download(iconUrl, ASSETS_DIR "ahk.ico")
+    }
+}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; 菜单事件响应 ;
