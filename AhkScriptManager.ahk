@@ -24,8 +24,6 @@ EnvSet("PATH", A_ScriptDir "\3rd") ;%Paths%	; 设置环境变量. 通过AhkScrip
 ; 初始化 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-global scriptCount := "0"
-
 OnExit(ExitSub)
 
 ; Declare tray item
